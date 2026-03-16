@@ -13,7 +13,8 @@ _cmd_tracker_last_cmd=""
 _cmd_tracker_preexec() {
     _cmd_tracker_start_time=$(date +%s%N 2>/dev/null || date +%s)
     # コマンドの最初の単語 (コマンド名) だけ取得
-    _cmd_tracker_last_cmd=$(echo "${BASH_COMMAND}" | awk '{print $1}')
+    _cmd_tracker_last_cmd="$BASH_COMMAND"
+    # _cmd_tracker_last_cmd=$(echo "${BASH_COMMAND}" | awk '{print $1}')
 }
 
 # コマンド実行後: 経過時間を計算して記録
