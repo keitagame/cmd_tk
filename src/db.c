@@ -5,6 +5,7 @@
 #include <sys/file.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <math.h>
 #include "tracker.h"
 
 #define DAY_SECS 86400
@@ -118,11 +119,11 @@ int log_read_recent(LogEntry out[], int max_n, int *got) {
     FILE *fp = fopen(LOG_FILE, "rb");
     if (!fp) return 0;
     fseek(fp, 0, SEEK_END);
-    long sz = ftell(fp);
-    long n_entries = sz / (long)sizeof(LogEntry);
-    long start = (n_entries > max_n) ? n_entries - max_n : 0;
+    long sz      = ftell(fp);
+    long n_total = sz / (long)sizeof(LogEntry);
+    long start   = (n_total > max_n) ? n_total - max_n : 0;
     fseek(fp, start * (long)sizeof(LogEntry), SEEK_SET);
-    *got = (int)fread(out, sizeof(LogEntry), max_n, fp);
+    *got = (int)fread(out, sizeof(LogEntry), (size_t)max_n, fp);
     fclose(fp);
     return 0;
 }
@@ -145,46 +146,52 @@ int log_export_csv(const char *path) {
 
 /* ── Sort ─────────────────────────────────────────────────────── */
 static int cmp_count(const void *a, const void *b) {
-    const CmdEntry *A=a, *B=b;
+    const CmdEntry *A = a, *B = b;
     return (B->rec.count > A->rec.count) - (B->rec.count < A->rec.count);
 }
 static int cmp_time(const void *a, const void *b) {
-    const CmdEntry *A=a, *B=b;
+    const CmdEntry *A = a, *B = b;
     return (B->rec.total_secs > A->rec.total_secs) - (B->rec.total_secs < A->rec.total_secs);
 }
 static int cmp_streak(const void *a, const void *b) {
-    const CmdEntry *A=a, *B=b;
+    const CmdEntry *A = a, *B = b;
     return (B->rec.streak > A->rec.streak) - (B->rec.streak < A->rec.streak);
 }
 static int cmp_days(const void *a, const void *b) {
-    const CmdEntry *A=a, *B=b;
+    const CmdEntry *A = a, *B = b;
     return (B->rec.active_days > A->rec.active_days) - (B->rec.active_days < A->rec.active_days);
 }
-void db_sort_by_count(CmdEntry e[], int n)  { qsort(e,n,sizeof(CmdEntry),cmp_count);  }
-void db_sort_by_time(CmdEntry e[], int n)   { qsort(e,n,sizeof(CmdEntry),cmp_time);   }
-void db_sort_by_streak(CmdEntry e[], int n) { qsort(e,n,sizeof(CmdEntry),cmp_streak); }
-void db_sort_by_days(CmdEntry e[], int n)   { qsort(e,n,sizeof(CmdEntry),cmp_days);   }
+void db_sort_by_count(CmdEntry e[], int n)  { qsort(e, n, sizeof(CmdEntry), cmp_count);  }
+void db_sort_by_time(CmdEntry e[], int n)   { qsort(e, n, sizeof(CmdEntry), cmp_time);   }
+void db_sort_by_streak(CmdEntry e[], int n) { qsort(e, n, sizeof(CmdEntry), cmp_streak); }
+void db_sort_by_days(CmdEntry e[], int n)   { qsort(e, n, sizeof(CmdEntry), cmp_days);   }
 
-/* ── Formatters ───────────────────────────────────────────────── */
+/* ── Formatters ──────────────────────────────────────────────── */
 char *fmt_duration(double secs, char *buf, size_t len) {
-    uint64_t s=(uint64_t)secs, h=s/3600; s%=3600;
-    uint64_t m=s/60; s%=60;
-    if (h)      snprintf(buf,len,"%luh%02lum%02lus",(unsigned long)h,(unsigned long)m,(unsigned long)s);
-    else if (m) snprintf(buf,len,"%lum%02lus",(unsigned long)m,(unsigned long)s);
-    else        snprintf(buf,len,"%.2fs",secs);
+    uint64_t s = (uint64_t)secs;
+    uint64_t h = s / 3600; s %= 3600;
+    uint64_t m = s / 60;   s %= 60;
+    if (h)      snprintf(buf, len, "%luh%02lum%02lus",
+                    (unsigned long)h, (unsigned long)m, (unsigned long)s);
+    else if (m) snprintf(buf, len, "%lum%02lus",
+                    (unsigned long)m, (unsigned long)s);
+    else        snprintf(buf, len, "%.2fs", secs);
     return buf;
 }
+
 char *fmt_time(time_t t, char *buf, size_t len) {
-    struct tm tm; localtime_r(&t,&tm);
-    strftime(buf,len,"%Y-%m-%d",&tm); return buf;
+    struct tm tm; localtime_r(&t, &tm);
+    strftime(buf, len, "%Y-%m-%d", &tm); return buf;
 }
+
 char *fmt_datetime(time_t t, char *buf, size_t len) {
-    struct tm tm; localtime_r(&t,&tm);
-    strftime(buf,len,"%Y-%m-%d %H:%M:%S",&tm); return buf;
+    struct tm tm; localtime_r(&t, &tm);
+    strftime(buf, len, "%Y-%m-%d %H:%M:%S", &tm); return buf;
 }
+
 char *fmt_bar(uint64_t val, uint64_t max_val, int width, char *buf) {
-    if (max_val==0) { buf[0]='\0'; return buf; }
-    int filled=(int)((double)val/max_val*width);
-    for (int i=0;i<width;i++) buf[i]=(i<filled)?'#':'-';
-    buf[width]='\0'; return buf;
+    if (max_val == 0) { buf[0] = '\0'; return buf; }
+    int filled = (int)((double)val / max_val * width);
+    for (int i = 0; i < width; i++) buf[i] = (i < filled) ? '#' : '-';
+    buf[width] = '\0'; return buf;
 }
